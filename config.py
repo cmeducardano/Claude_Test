@@ -2,12 +2,18 @@
 Application configuration
 """
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 
 class Settings(BaseSettings):
     """Application settings"""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
 
     # LLM
     openai_api_key: Optional[str] = None
@@ -29,10 +35,6 @@ class Settings(BaseSettings):
 
     # Privacy
     enable_privacy_filters: bool = True
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 def load_config() -> Settings:

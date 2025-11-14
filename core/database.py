@@ -10,9 +10,11 @@ from datetime import datetime
 import uuid
 
 from core.models import (
-    Student, Session, Message, TodoItem, Path, StudentProfile,
+    Student, Session, Message, TodoItem, StudentProfile,
     StudentStatus, LLMRole, MessageRole
 )
+# Note: We import Path from pathlib above, not from core.models
+# core.models.Path is the Pydantic model for educational paths
 
 
 class Database:
