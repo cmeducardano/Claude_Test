@@ -40,6 +40,29 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+class MockLLMProvider:
+    """Provider LLM simulato per demo senza API key"""
+    async def chat(self, messages, tools=None):
+        last_msg = messages[-1]["content"] if messages else ""
+
+        if "ciao" in last_msg.lower() or not last_msg:
+            return """Ciao! 👋 Sono qui per aiutarti a scoprire cosa ti appassiona davvero.
+Non c'è fretta e non ci sono risposte giuste o sbagliate.
+
+Raccontami: c'è stato un progetto o un'attività che hai fatto a scuola che ti ha davvero preso?"""
+
+        elif any(word in last_msg.lower() for word in ["progetto", "arduino", "coding", "programma"]):
+            return """Interessante! 🤔 Mi piace sentire che ti sei appassionato a un progetto concreto.
+
+Dimmi: quando lavoravi a questo progetto, cosa ti piaceva di più?
+Era il vedere i risultati subito, risolvere problemi, o lavorare con altre persone?"""
+
+        return """Capisco. Ogni esperienza ci insegna qualcosa su noi stessi.
+
+C'è qualcos'altro che ti viene in mente quando pensi a cosa ti piace fare?
+Anche attività fuori dalla scuola vanno benissimo!"""
+
+
 @st.cache_resource
 def init_services():
     """Initialize database and services"""
@@ -48,14 +71,17 @@ def init_services():
     # Database
     db = Database(config.database_path)
 
-    # LLM Provider
+    # LLM Provider - usa Mock se non c'è API key
     if config.llm_provider == "openai" and config.openai_api_key:
         provider = OpenAIProvider(api_key=config.openai_api_key)
+        st.sidebar.success("🤖 LLM: OpenAI GPT-4")
     elif config.llm_provider == "anthropic" and config.anthropic_api_key:
         provider = AnthropicProvider(api_key=config.anthropic_api_key)
+        st.sidebar.success("🤖 LLM: Anthropic Claude")
     else:
-        st.error("⚠️ Nessuna API key configurata! Controlla il file .env")
-        st.stop()
+        provider = MockLLMProvider()
+        st.sidebar.warning("🤖 LLM: Modalità DEMO (simulato)")
+        st.sidebar.info("💡 Aggiungi OPENAI_API_KEY in .env per usare LLM reale")
 
     # Services
     llm_service = LLMService(provider)
