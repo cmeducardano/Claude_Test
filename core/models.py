@@ -17,12 +17,30 @@ class StudentStatus(str, Enum):
 
 
 class LLMRole(str, Enum):
-    """Ruoli LLM disponibili"""
+    """
+    Ruoli LLM disponibili con micro-transizioni per scaffolding graduale.
+
+    Flusso pedagogico:
+    - Sessioni 1-2: ESPLORATORE (scoperta pura)
+    - Sessione 3: ESPLORATORE_ANALIZZANTE (transizione: inizia a vedere pattern)
+    - Sessioni 4-5: ANALISTA (analisi profonda)
+    - Sessione 6: ANALISTA_ORIENTANTE (transizione: prepara per i percorsi)
+    - Sessioni 7-9: MENTORE (presenta opzioni concrete)
+    - Sessione 10: MENTORE_ATTIVANTE (transizione: prepara per l'azione)
+    - Sessioni 11+: COACH (esecuzione del piano)
+    - Sempre disponibile: FILOSOFO (gestione crisi/dubbi)
+    """
+    # Ruoli principali
     ESPLORATORE = "esploratore_curioso"
     ANALISTA = "analista_empatico"
     MENTORE = "mentore_pragmatico"
     COACH = "coach_operativo"
     FILOSOFO = "filosofo_riflessivo"
+
+    # Ruoli di transizione (micro-scaffolding)
+    ESPLORATORE_ANALIZZANTE = "esploratore_analizzante"  # Sessione 3
+    ANALISTA_ORIENTANTE = "analista_orientante"          # Sessione 6
+    MENTORE_ATTIVANTE = "mentore_attivante"              # Sessione 10
 
 
 class MessageRole(str, Enum):

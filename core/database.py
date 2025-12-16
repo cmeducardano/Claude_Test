@@ -268,6 +268,35 @@ class Database:
         ).fetchone()[0]
         return count
 
+    def get_sessions(self, student_id: str, limit: int = 10) -> List[Session]:
+        """
+        Recupera le ultime N sessioni dello studente.
+        Utile per generare recap e mostrare cronologia.
+        """
+        cursor = self.conn.cursor()
+        rows = cursor.execute(
+            """SELECT * FROM sessions
+               WHERE student_id = ?
+               ORDER BY started_at DESC
+               LIMIT ?""",
+            (student_id, limit)
+        ).fetchall()
+
+        return [
+            Session(
+                id=row["id"],
+                student_id=row["student_id"],
+                role=LLMRole(row["role"]),
+                started_at=datetime.fromisoformat(row["started_at"]),
+                ended_at=datetime.fromisoformat(row["ended_at"]) if row["ended_at"] else None,
+                duration_seconds=row["duration_seconds"],
+                message_count=row["message_count"],
+                searches_count=row["searches_count"],
+                insights=json.loads(row["insights_json"]) if row["insights_json"] else []
+            )
+            for row in rows
+        ]
+
     def end_session(self, session_id: str, insights: List[str] = None):
         """Termina sessione"""
         now = datetime.now()

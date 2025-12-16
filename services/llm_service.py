@@ -102,7 +102,7 @@ class LLMService:
         return prompts
 
     def _get_default_prompt(self, role: LLMRole) -> str:
-        """Get default prompt for a role"""
+        """Get default prompt for a role (including transitional roles)"""
         defaults = {
             LLMRole.ESPLORATORE: """Tu sei un "Esploratore Curioso" - un assistente all'orientamento per studenti ITIS.
 
@@ -119,6 +119,18 @@ STILE:
 - Domande specifiche su progetti/momenti concreti
 - Approfondire con "come ti sei sentito?" "cosa ti è piaciuto?"
 """,
+            LLMRole.ESPLORATORE_ANALIZZANTE: """Tu sei un "Esploratore Analizzante" - fase di transizione (sessione 3).
+
+OBIETTIVO: Continuare a esplorare MA iniziando a far notare pattern emersi.
+
+PRINCIPI:
+- Inizia con un breve recap delle sessioni precedenti
+- Fai notare connessioni tra interessi emersi
+- Chiedi conferma: "Ti ritrovi in questa osservazione?"
+- NON suggerire ancora percorsi specifici
+
+STILE: Riflessivo ma ancora curioso. Usa "Mi sembra di notare...", "Potrebbe essere che..."
+""",
             LLMRole.ANALISTA: """Tu sei un "Analista Empatico" - approfondisci competenze e valori dello studente.
 
 OBIETTIVO: Validare competenze e identificare valori profondi.
@@ -129,6 +141,18 @@ PRINCIPI:
 - Esplora i "perché" dietro le scelte
 
 STILE: Riflessivo ma sempre positivo, mai giudicante.
+""",
+            LLMRole.ANALISTA_ORIENTANTE: """Tu sei un "Analista Orientante" - fase di transizione (sessione 6).
+
+OBIETTIVO: Consolidare il profilo e preparare per i percorsi concreti.
+
+PRINCIPI:
+- Inizia con una sintesi del profilo emerso
+- Esplora i CRITERI di scelta (distanza, durata, pratico vs teorico)
+- NON presentare ancora percorsi specifici
+- Anticipa la prossima fase: "Dalla prossima sessione vedremo percorsi concreti"
+
+STILE: Riflessivo e sintetico. Celebra il percorso fatto finora.
 """,
             LLMRole.MENTORE: """Tu sei un "Mentore Pragmatico" - presenti percorsi concreti basati sul profilo studente.
 
@@ -141,6 +165,18 @@ PRINCIPI:
 - Proporre "test di realtà" verificabili
 
 STILE: Pratico, onesto, supportivo.
+""",
+            LLMRole.MENTORE_ATTIVANTE: """Tu sei un "Mentore Attivante" - fase di transizione (sessione 10).
+
+OBIETTIVO: Verificare decisione e preparare il piano d'azione.
+
+PRINCIPI:
+- Verifica: ha scelto o è ancora indeciso?
+- Se ha scelto: celebra e prepara i primi passi concreti
+- Se indeciso: proponi esperimenti (open day, parlare con qualcuno)
+- Anticipa: "Dalla prossima sessione divento il tuo Coach Operativo"
+
+STILE: Energico ma rispettoso dei tempi. Bilancia entusiasmo e pazienza.
 """,
             LLMRole.COACH: """Tu sei un "Coach Operativo" - supporti la preparazione concreta.
 
@@ -220,13 +256,119 @@ STILE: Calmo, saggio, rassicurante.
 
         return "\n".join(parts)
 
-    def determine_role(self, session_count: int, student_status: str) -> LLMRole:
-        """Determine appropriate LLM role based on progress"""
-        if session_count < 4:
+    def determine_role(
+        self,
+        session_count: int,
+        student_status: str,
+        force_filosofo: bool = False
+    ) -> LLMRole:
+        """
+        Determine appropriate LLM role based on progress with micro-transitions.
+
+        Scaffolding pedagogico graduale:
+        - Sessioni 1-2: ESPLORATORE (scoperta pura)
+        - Sessione 3: ESPLORATORE_ANALIZZANTE (transizione)
+        - Sessioni 4-5: ANALISTA (analisi profonda)
+        - Sessione 6: ANALISTA_ORIENTANTE (transizione)
+        - Sessioni 7-9: MENTORE (presenta opzioni)
+        - Sessione 10: MENTORE_ATTIVANTE (transizione)
+        - Sessioni 11+: COACH (esecuzione)
+        - Sempre: FILOSOFO (su richiesta o crisi)
+        """
+        # Il Filosofo può essere attivato in qualsiasi momento
+        if force_filosofo:
+            return LLMRole.FILOSOFO
+
+        # Scaffolding graduale con micro-transizioni
+        if session_count <= 2:
+            # Sessioni 1-2: Esplorazione pura
             return LLMRole.ESPLORATORE
-        elif session_count < 7:
+        elif session_count == 3:
+            # Sessione 3: Transizione - inizia a vedere pattern
+            return LLMRole.ESPLORATORE_ANALIZZANTE
+        elif session_count <= 5:
+            # Sessioni 4-5: Analisi profonda
             return LLMRole.ANALISTA
-        elif session_count < 11:
+        elif session_count == 6:
+            # Sessione 6: Transizione - prepara per i percorsi
+            return LLMRole.ANALISTA_ORIENTANTE
+        elif session_count <= 9:
+            # Sessioni 7-9: Mentoring con opzioni concrete
             return LLMRole.MENTORE
+        elif session_count == 10:
+            # Sessione 10: Transizione - prepara per l'azione
+            return LLMRole.MENTORE_ATTIVANTE
         else:
+            # Sessioni 11+: Coach operativo
             return LLMRole.COACH
+
+    def get_role_progress_info(self, role: LLMRole) -> dict:
+        """
+        Restituisce informazioni sul progresso per la UI.
+        Utile per mostrare allo studente dove si trova nel percorso.
+        """
+        role_info = {
+            LLMRole.ESPLORATORE: {
+                "fase": "Esplorazione",
+                "descrizione": "Scopriamo i tuoi interessi",
+                "progresso": 15,
+                "icona": "🔍",
+                "prossimo": "Presto inizieremo a vedere i pattern"
+            },
+            LLMRole.ESPLORATORE_ANALIZZANTE: {
+                "fase": "Esplorazione → Analisi",
+                "descrizione": "Iniziamo a vedere i pattern",
+                "progresso": 25,
+                "icona": "🔍→📊",
+                "prossimo": "Nella prossima sessione approfondiremo le tue competenze"
+            },
+            LLMRole.ANALISTA: {
+                "fase": "Analisi",
+                "descrizione": "Approfondiamo competenze e valori",
+                "progresso": 40,
+                "icona": "📊",
+                "prossimo": "Presto esploreremo i percorsi possibili"
+            },
+            LLMRole.ANALISTA_ORIENTANTE: {
+                "fase": "Analisi → Orientamento",
+                "descrizione": "Prepariamo i criteri di scelta",
+                "progresso": 50,
+                "icona": "📊→🎯",
+                "prossimo": "Dalla prossima sessione vedremo percorsi concreti"
+            },
+            LLMRole.MENTORE: {
+                "fase": "Orientamento",
+                "descrizione": "Esploriamo i percorsi possibili",
+                "progresso": 65,
+                "icona": "🎯",
+                "prossimo": "Presto passeremo all'azione"
+            },
+            LLMRole.MENTORE_ATTIVANTE: {
+                "fase": "Orientamento → Azione",
+                "descrizione": "Prepariamo il piano d'azione",
+                "progresso": 80,
+                "icona": "🎯→🚀",
+                "prossimo": "Dalla prossima sessione si parte!"
+            },
+            LLMRole.COACH: {
+                "fase": "Azione",
+                "descrizione": "Realizziamo il tuo piano",
+                "progresso": 90,
+                "icona": "🚀",
+                "prossimo": "Continuiamo verso il traguardo"
+            },
+            LLMRole.FILOSOFO: {
+                "fase": "Riflessione",
+                "descrizione": "Prendiamoci un momento per riflettere",
+                "progresso": None,  # Fuori dal flusso lineare
+                "icona": "🤔",
+                "prossimo": "Riprenderemo il percorso quando ti sentirai pronto"
+            }
+        }
+        return role_info.get(role, {
+            "fase": "Sconosciuta",
+            "descrizione": "",
+            "progresso": 0,
+            "icona": "❓",
+            "prossimo": ""
+        })

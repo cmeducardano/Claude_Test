@@ -148,3 +148,113 @@ class SessionManager:
             "started_at": session.started_at,
             "ended_at": session.ended_at
         }
+
+    def generate_session_recap(self, student_id: str) -> str:
+        """
+        Genera un recap contestualizzato delle sessioni precedenti.
+        Usato all'inizio di ogni nuova sessione per garantire continuità.
+        """
+        # Recupera le ultime sessioni (max 3)
+        sessions = self.db.get_sessions(student_id, limit=3)
+        if not sessions:
+            return ""
+
+        recap_parts = []
+        session_count = self.count_sessions(student_id)
+
+        # Header del recap
+        if session_count == 1:
+            return ""  # Prima sessione, nessun recap
+        elif session_count == 2:
+            recap_parts.append("📝 **Recap della sessione precedente:**")
+        else:
+            recap_parts.append(f"📝 **Recap delle ultime {min(len(sessions), 3)} sessioni:**")
+
+        # Analizza ogni sessione precedente
+        for i, session in enumerate(sessions[:3]):
+            if session.insights:
+                insights_str = "; ".join(session.insights[:3])  # Max 3 insight per sessione
+                recap_parts.append(f"- Sessione {session_count - i - 1}: {insights_str}")
+
+        # Aggiungi contesto sulla fase attuale
+        current_role = self.llm_service.determine_role(session_count, "exploring")
+        role_info = self.llm_service.get_role_progress_info(current_role)
+
+        recap_parts.append("")
+        recap_parts.append(f"🎯 **Fase attuale:** {role_info['fase']} - {role_info['descrizione']}")
+
+        if role_info.get('prossimo'):
+            recap_parts.append(f"➡️ **Prossimo passo:** {role_info['prossimo']}")
+
+        return "\n".join(recap_parts)
+
+    def get_progress_info(self, student_id: str) -> Dict:
+        """
+        Restituisce informazioni sul progresso dello studente.
+        Utile per la UI per mostrare barra di avanzamento e controlli.
+        """
+        session_count = self.count_sessions(student_id)
+        student = self.db.get_student(student_id)
+
+        current_role = self.llm_service.determine_role(
+            session_count,
+            student.status.value if student else "exploring"
+        )
+        role_info = self.llm_service.get_role_progress_info(current_role)
+
+        # Calcola se può tornare indietro
+        can_go_back = session_count > 1
+
+        # Calcola ruolo precedente (per "torna indietro")
+        previous_role = None
+        if session_count > 1:
+            previous_role = self.llm_service.determine_role(
+                session_count - 1,
+                student.status.value if student else "exploring"
+            )
+
+        return {
+            "session_count": session_count,
+            "current_role": current_role,
+            "role_info": role_info,
+            "can_go_back": can_go_back,
+            "previous_role": previous_role,
+            "can_request_filosofo": True  # Sempre disponibile
+        }
+
+    def create_session_with_role_override(
+        self,
+        student_id: str,
+        role_override: Optional[LLMRole] = None,
+        go_back: bool = False
+    ) -> Session:
+        """
+        Crea una nuova sessione con possibilità di override del ruolo.
+
+        Args:
+            student_id: ID dello studente
+            role_override: Forza un ruolo specifico (es. FILOSOFO)
+            go_back: Se True, usa il ruolo della fase precedente
+
+        Returns:
+            La nuova sessione creata
+        """
+        session_count = self.count_sessions(student_id)
+        student = self.db.get_student(student_id)
+        student_status = student.status.value if student else "exploring"
+
+        if role_override:
+            role = role_override
+        elif go_back and session_count > 1:
+            # Torna al ruolo della sessione precedente
+            role = self.llm_service.determine_role(
+                session_count - 1,
+                student_status
+            )
+        else:
+            role = self.llm_service.determine_role(
+                session_count,
+                student_status
+            )
+
+        return self.db.create_session(student_id, role)
